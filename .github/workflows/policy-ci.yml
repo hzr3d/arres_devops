@@ -33,6 +33,22 @@ on:
         type: boolean
         default: false
 
+    secrets:
+      AZURE_CLIENT_ID:
+        required: false
+      AZURE_TENANT_ID:
+        required: false
+      AZURE_SUBSCRIPTION_ID:
+        required: false
+      ACR_NAME:
+        required: false
+      ACR_LOGIN_SERVER:
+        required: false
+      AZURE_CONTAINERAPP_NAME:
+        required: false
+      AZURE_RESOURCE_GROUP:
+        required: false
+
 permissions:
   contents: read
 
@@ -227,7 +243,7 @@ jobs:
 
       # OPTIONAL: push to ACR if secrets exist
       - name: Azure login (OIDC) - optional
-        if: ${{ env.ACR_NAME != '' && secrets.AZURE_CLIENT_ID != '' }}
+        if: ${{ secrets.ACR_NAME != '' && secrets.AZURE_CLIENT_ID != '' }}
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -235,7 +251,7 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Push to ACR - optional
-        if: ${{ env.ACR_NAME != '' && inputs.project_type != 'python_lib' && secrets.AZURE_CLIENT_ID != '' }}
+        if: ${{ secrets.ACR_NAME != '' && inputs.project_type != 'python_lib' && secrets.AZURE_CLIENT_ID != '' }}
         env:
           ACR_NAME: ${{ secrets.ACR_NAME }}
           ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
