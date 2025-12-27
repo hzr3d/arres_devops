@@ -28,6 +28,26 @@ on:
         required: false
         type: string
         default: "artifact"
+      with_mock_lib:
+        required: false
+        type: boolean
+        default: false
+
+    secrets:
+      AZURE_CLIENT_ID:
+        required: false
+      AZURE_TENANT_ID:
+        required: false
+      AZURE_SUBSCRIPTION_ID:
+        required: false
+      ACR_NAME:
+        required: false
+      ACR_LOGIN_SERVER:
+        required: false
+      AZURE_CONTAINERAPP_NAME:
+        required: false
+      AZURE_RESOURCE_GROUP:
+        required: false
 
 permissions:
   contents: read
@@ -38,6 +58,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Checkout mock_lib (if needed)
+        if: inputs.with_mock_lib
+        uses: actions/checkout@v4
+        with:
+          repository: hzr3d/mock_lib
+          path: mock_lib
+
+      - name: Move mock_lib to parent
+        if: inputs.with_mock_lib
+        run: mv mock_lib ../mock_lib
 
       - name: Python lint (ruff)
         if: inputs.project_type != 'react_app'
@@ -75,6 +106,17 @@ jobs:
     needs: [lint]
     steps:
       - uses: actions/checkout@v4
+
+      - name: Checkout mock_lib (if needed)
+        if: inputs.with_mock_lib
+        uses: actions/checkout@v4
+        with:
+          repository: hzr3d/mock_lib
+          path: mock_lib
+
+      - name: Move mock_lib to parent
+        if: inputs.with_mock_lib
+        run: mv mock_lib ../mock_lib
 
       - name: Python unit tests
         if: inputs.project_type != 'react_app'
@@ -123,6 +165,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Checkout mock_lib (if needed)
+        if: inputs.with_mock_lib
+        uses: actions/checkout@v4
+        with:
+          repository: hzr3d/mock_lib
+          path: mock_lib
+
+      - name: Move mock_lib to parent
+        if: inputs.with_mock_lib
+        run: mv mock_lib ../mock_lib
+
       - name: Run integration script (if present)
         run: |
           if [ -x "scripts/integration_test.sh" ]; then
@@ -141,8 +194,23 @@ jobs:
     permissions:
       contents: read
       id-token: write   # enables Azure OIDC if secrets are set
+    env:
+      ACR_NAME: ${{ secrets.ACR_NAME }}
+      ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      AZURE_CONTAINERAPP_NAME: ${{ secrets.AZURE_CONTAINERAPP_NAME }}
+      AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Checkout mock_lib (if needed)
+        if: inputs.with_mock_lib
+        uses: actions/checkout@v4
+        with:
+          repository: hzr3d/mock_lib
+          path: mock_lib_temp
 
       - name: Compute image/tag
         id: meta
@@ -170,7 +238,14 @@ jobs:
       - name: Build Docker image (python_service / react_app)
         if: inputs.project_type != 'python_lib'
         run: |
-          docker build -t local/${{ steps.meta.outputs.image_name }}:${{ steps.meta.outputs.sha_tag }} .
+          DOCKERFILE="Dockerfile"
+          if [ "${{ inputs.with_mock_lib }}" == "true" ]; then
+            description="Modified for CI"
+            cp Dockerfile Dockerfile.ci
+            sed -i 's|COPY ../mock_lib /mock_lib|COPY mock_lib_temp /mock_lib|' Dockerfile.ci
+            DOCKERFILE="Dockerfile.ci"
+          fi
+          docker build -f "$DOCKERFILE" -t local/${{ steps.meta.outputs.image_name }}:${{ steps.meta.outputs.sha_tag }} .
 
       # Upload artifacts for tutorial purposes even if Azure push isn't configured
       - name: Save docker image tar
@@ -188,7 +263,7 @@ jobs:
 
       # OPTIONAL: push to ACR if secrets exist
       - name: Azure login (OIDC) - optional
-        if: ${{ env.ACR_NAME != '' && secrets.AZURE_CLIENT_ID != '' }}
+        if: ${{ env.ACR_NAME != '' && env.AZURE_CLIENT_ID != '' }}
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -196,9 +271,9 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Push to ACR - optional
-        if: ${{ env.ACR_NAME != '' && inputs.project_type != 'python_lib' && secrets.AZURE_CLIENT_ID != '' }}
+        if: ${{ env.ACR_NAME != '' && inputs.project_type != 'python_lib' && env.AZURE_CLIENT_ID != '' }}
         env:
-          ACR_NAME: ${{ secrets.ACR_NAME }}
+          ACR_NAME: ${{ env.ACR_NAME }}
           ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
         run: |
           az acr login --name "$ACR_NAME"
@@ -209,11 +284,11 @@ jobs:
 
       # OPTIONAL: deploy to Azure Container Apps if configured
       - name: Deploy to Azure Container Apps - optional
-        if: ${{ secrets.AZURE_CONTAINERAPP_NAME != '' && secrets.AZURE_RESOURCE_GROUP != '' && inputs.project_type != 'python_lib' && secrets.ACR_LOGIN_SERVER != '' && secrets.AZURE_CLIENT_ID != '' }}
+        if: ${{ env.AZURE_CONTAINERAPP_NAME != '' && env.AZURE_RESOURCE_GROUP != '' && inputs.project_type != 'python_lib' && env.ACR_LOGIN_SERVER != '' && env.AZURE_CLIENT_ID != '' }}
         env:
-          RG: ${{ secrets.AZURE_RESOURCE_GROUP }}
-          APP: ${{ secrets.AZURE_CONTAINERAPP_NAME }}
-          ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+          RG: ${{ env.AZURE_RESOURCE_GROUP }}
+          APP: ${{ env.AZURE_CONTAINERAPP_NAME }}
+          ACR_LOGIN_SERVER: ${{ env.ACR_LOGIN_SERVER }}
         run: |
           IMAGE="$ACR_LOGIN_SERVER/${{ steps.meta.outputs.image_name }}:${{ steps.meta.outputs.sha_tag }}"
           az containerapp update --name "$APP" --resource-group "$RG" --image "$IMAGE"
