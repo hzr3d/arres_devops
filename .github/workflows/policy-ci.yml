@@ -182,6 +182,14 @@ jobs:
     permissions:
       contents: read
       id-token: write   # enables Azure OIDC if secrets are set
+    env:
+      ACR_NAME: ${{ secrets.ACR_NAME }}
+      ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      AZURE_CONTAINERAPP_NAME: ${{ secrets.AZURE_CONTAINERAPP_NAME }}
+      AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
     steps:
       - uses: actions/checkout@v4
 
@@ -243,7 +251,7 @@ jobs:
 
       # OPTIONAL: push to ACR if secrets exist
       - name: Azure login (OIDC) - optional
-        if: ${{ secrets.ACR_NAME != '' && secrets.AZURE_CLIENT_ID != '' }}
+        if: ${{ env.ACR_NAME != '' && env.AZURE_CLIENT_ID != '' }}
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -251,9 +259,9 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Push to ACR - optional
-        if: ${{ secrets.ACR_NAME != '' && inputs.project_type != 'python_lib' && secrets.AZURE_CLIENT_ID != '' }}
+        if: ${{ env.ACR_NAME != '' && inputs.project_type != 'python_lib' && env.AZURE_CLIENT_ID != '' }}
         env:
-          ACR_NAME: ${{ secrets.ACR_NAME }}
+          ACR_NAME: ${{ env.ACR_NAME }}
           ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
         run: |
           az acr login --name "$ACR_NAME"
@@ -264,11 +272,11 @@ jobs:
 
       # OPTIONAL: deploy to Azure Container Apps if configured
       - name: Deploy to Azure Container Apps - optional
-        if: ${{ secrets.AZURE_CONTAINERAPP_NAME != '' && secrets.AZURE_RESOURCE_GROUP != '' && inputs.project_type != 'python_lib' && secrets.ACR_LOGIN_SERVER != '' && secrets.AZURE_CLIENT_ID != '' }}
+        if: ${{ env.AZURE_CONTAINERAPP_NAME != '' && env.AZURE_RESOURCE_GROUP != '' && inputs.project_type != 'python_lib' && env.ACR_LOGIN_SERVER != '' && env.AZURE_CLIENT_ID != '' }}
         env:
-          RG: ${{ secrets.AZURE_RESOURCE_GROUP }}
-          APP: ${{ secrets.AZURE_CONTAINERAPP_NAME }}
-          ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+          RG: ${{ env.AZURE_RESOURCE_GROUP }}
+          APP: ${{ env.AZURE_CONTAINERAPP_NAME }}
+          ACR_LOGIN_SERVER: ${{ env.ACR_LOGIN_SERVER }}
         run: |
           IMAGE="$ACR_LOGIN_SERVER/${{ steps.meta.outputs.image_name }}:${{ steps.meta.outputs.sha_tag }}"
           az containerapp update --name "$APP" --resource-group "$RG" --image "$IMAGE"
