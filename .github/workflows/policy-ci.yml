@@ -28,6 +28,10 @@ on:
         required: false
         type: string
         default: "artifact"
+      with_mock_lib:
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -38,6 +42,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Checkout mock_lib (if needed)
+        if: inputs.with_mock_lib
+        uses: actions/checkout@v4
+        with:
+          repository: hzr3d/mock_lib
+          path: ../mock_lib
 
       - name: Python lint (ruff)
         if: inputs.project_type != 'react_app'
@@ -75,6 +86,13 @@ jobs:
     needs: [lint]
     steps:
       - uses: actions/checkout@v4
+
+      - name: Checkout mock_lib (if needed)
+        if: inputs.with_mock_lib
+        uses: actions/checkout@v4
+        with:
+          repository: hzr3d/mock_lib
+          path: ../mock_lib
 
       - name: Python unit tests
         if: inputs.project_type != 'react_app'
@@ -123,6 +141,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Checkout mock_lib (if needed)
+        if: inputs.with_mock_lib
+        uses: actions/checkout@v4
+        with:
+          repository: hzr3d/mock_lib
+          path: ../mock_lib
+
       - name: Run integration script (if present)
         run: |
           if [ -x "scripts/integration_test.sh" ]; then
@@ -143,6 +168,13 @@ jobs:
       id-token: write   # enables Azure OIDC if secrets are set
     steps:
       - uses: actions/checkout@v4
+
+      - name: Checkout mock_lib (if needed)
+        if: inputs.with_mock_lib
+        uses: actions/checkout@v4
+        with:
+          repository: hzr3d/mock_lib
+          path: mock_lib_temp
 
       - name: Compute image/tag
         id: meta
@@ -170,7 +202,14 @@ jobs:
       - name: Build Docker image (python_service / react_app)
         if: inputs.project_type != 'python_lib'
         run: |
-          docker build -t local/${{ steps.meta.outputs.image_name }}:${{ steps.meta.outputs.sha_tag }} .
+          DOCKERFILE="Dockerfile"
+          if [ "${{ inputs.with_mock_lib }}" == "true" ]; then
+            description="Modified for CI"
+            cp Dockerfile Dockerfile.ci
+            sed -i 's|COPY ../mock_lib /mock_lib|COPY mock_lib_temp /mock_lib|' Dockerfile.ci
+            DOCKERFILE="Dockerfile.ci"
+          fi
+          docker build -f "$DOCKERFILE" -t local/${{ steps.meta.outputs.image_name }}:${{ steps.meta.outputs.sha_tag }} .
 
       # Upload artifacts for tutorial purposes even if Azure push isn't configured
       - name: Save docker image tar
