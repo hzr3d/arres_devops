@@ -64,7 +64,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: hzr3d/mock_lib
-          path: ../mock_lib
+          path: mock_lib
+
+      - name: Move mock_lib to parent
+        if: inputs.with_mock_lib
+        run: mv mock_lib ../mock_lib
 
       - name: Python lint (ruff)
         if: inputs.project_type != 'react_app'
@@ -108,7 +112,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: hzr3d/mock_lib
-          path: ../mock_lib
+          path: mock_lib
+
+      - name: Move mock_lib to parent
+        if: inputs.with_mock_lib
+        run: mv mock_lib ../mock_lib
 
       - name: Python unit tests
         if: inputs.project_type != 'react_app'
@@ -162,7 +170,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: hzr3d/mock_lib
-          path: ../mock_lib
+          path: mock_lib
+
+      - name: Move mock_lib to parent
+        if: inputs.with_mock_lib
+        run: mv mock_lib ../mock_lib
 
       - name: Run integration script (if present)
         run: |
